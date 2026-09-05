@@ -1,0 +1,75 @@
+name: Deploy dbt Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual trigger from GitHub UI
+
+# Only one Pages deployment at a time; cancel any in-progress deploy
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  DBT_PROFILES_DIR: "."
+
+jobs:
+  deploy-docs:
+    name: Build & Deploy dbt Docs
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dbt
+        run: pip install dbt-duckdb==1.11.0 pip-system-certs
+
+      - name: Write CI profiles.yml
+        run: |
+          cat > profiles.yml << 'EOF'
+          ecommerce_dbt:
+            target: dev
+            outputs:
+              dev:
+                type: duckdb
+                path: "/tmp/docs_dev.duckdb"
+                schema: dev
+                threads: 4
+          EOF
+
+      - name: Set up source database
+        run: python scripts/setup_ci_db.py --db-path /tmp/docs_dev.duckdb
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt snapshot + seed + run
+        run: |
+          dbt snapshot
+          dbt seed
+          dbt run
+
+      - name: Generate dbt docs
+        run: dbt docs generate
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: target/
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
