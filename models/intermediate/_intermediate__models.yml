@@ -1,0 +1,13 @@
+version: 2
+
+models:
+
+  - name: int_orders_with_customers
+    description: >
+      Ephemeral model — joins stg_orders with stg_customers to enrich each order
+      with customer demographic and segmentation attributes. Inlined as a CTE into
+      downstream mart models; no warehouse object is created.
+    meta:
+      owner: analytics_engineering
+      domain: sales
+      tier: silver

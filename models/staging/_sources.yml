@@ -1,0 +1,125 @@
+version: 2
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DATA CONTRACTS — this file IS the contract between producers and consumers.
+# Changing a source column name or type requires a PR that updates this file
+# AND any staging model that depends on it, in the same commit.
+# ──────────────────────────────────────────────────────────────────────────────
+
+sources:
+  - name: raw_ecommerce
+    description: >
+      Raw e-commerce transactional data. Mirrors the Bronze layer from the
+      Lakehouse Platform (Project 1). In local dev this is a DuckDB 'raw' schema
+      populated by scripts/setup_dev_db.py; in prod it is a Databricks Delta schema.
+    schema: raw
+    freshness:
+      warn_after:  {count: 25, period: hour}
+      error_after: {count: 49, period: hour}
+
+    tables:
+
+      # ── ORDERS ──────────────────────────────────────────────────────────────
+      - name: orders
+        description: "One row per customer order across all sales channels."
+        loaded_at_field: updated_at
+        columns:
+          - name: order_id
+            description: "Primary key — unique order identifier (e.g. ORD-000001)."
+            tests:
+              - not_null
+              - unique
+
+          - name: customer_id
+            description: "Foreign key to customers table."
+            tests:
+              - not_null
+
+          - name: order_date
+            description: "Calendar date the order was placed."
+            tests:
+              - not_null
+
+          - name: order_status
+            description: "Current fulfillment status of the order."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+
+          - name: channel
+            description: "Sales channel through which the order was placed."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['web', 'mobile', 'store', 'api']
+
+          - name: total_amount
+            description: "Total monetary value of the order in USD."
+            tests:
+              - not_null
+
+          - name: created_at
+            description: "Timestamp when the record was first created."
+            tests:
+              - not_null
+
+          - name: updated_at
+            description: "Timestamp when the record was last modified."
+            tests:
+              - not_null
+
+      # ── CUSTOMERS ───────────────────────────────────────────────────────────
+      - name: customers
+        description: "One row per customer. Includes demographic and segmentation data."
+        loaded_at_field: updated_at
+        columns:
+          - name: customer_id
+            description: "Primary key — unique customer identifier (e.g. CUST-00001)."
+            tests:
+              - not_null
+              - unique
+
+          - name: first_name
+            description: "Customer first name."
+            tests:
+              - not_null
+
+          - name: last_name
+            description: "Customer last name."
+            tests:
+              - not_null
+
+          - name: email
+            description: "Customer email address — must be unique per customer."
+            tests:
+              - not_null
+              - unique
+
+          - name: segment
+            description: "Customer segment: B2B (business) or B2C (consumer)."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['B2B', 'B2C']
+
+          - name: tier
+            description: "Customer value tier based on lifetime spend."
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['Bronze', 'Silver', 'Gold', 'Platinum']
+
+          - name: created_at
+            description: "Timestamp when the customer was first registered."
+            tests:
+              - not_null
+
+          - name: updated_at
+            description: "Timestamp when the customer record was last modified."
+            tests:
+              - not_null

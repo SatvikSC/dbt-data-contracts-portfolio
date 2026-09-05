@@ -1,0 +1,182 @@
+version: 2
+
+models:
+
+  # ── DIM_CUSTOMERS ────────────────────────────────────────────────────────────
+  - name: dim_customers
+    description: >
+      Current-state customer dimension. Built from the snap_customers SCD Type 2
+      snapshot — only active records (dbt_valid_to IS NULL) are surfaced here.
+      Historical changes are queryable directly from snap_customers.
+    meta:
+      owner: analytics_engineering
+      domain: sales
+      tier: gold
+      contains_pii: true
+    columns:
+      - name: customer_key
+        description: "Surrogate primary key — deterministic MD5 of customer_id."
+        tests:
+          - not_null
+          - unique
+
+      - name: customer_id
+        description: "Natural key from source system (e.g. CUST-00001)."
+        tests:
+          - not_null
+          - unique
+
+      - name: first_name
+        description: "Customer first name."
+        tests:
+          - not_null
+
+      - name: last_name
+        description: "Customer last name."
+        tests:
+          - not_null
+
+      - name: email
+        description: "Lowercased customer email address."
+        tests:
+          - not_null
+          - unique
+
+      - name: phone
+        description: "Customer phone number."
+
+      - name: customer_segment
+        description: "Segment classification — B2B or B2C."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['B2B', 'B2C']
+
+      - name: customer_tier
+        description: "Value tier — Bronze/Silver/Gold/Platinum."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Bronze', 'Silver', 'Gold', 'Platinum']
+
+      - name: city
+        description: "Customer home city."
+
+      - name: state
+        description: "Customer home state/province."
+
+      - name: country
+        description: "Customer home country code."
+
+      - name: created_at
+        description: "Timestamp when the customer was first registered."
+        tests:
+          - not_null
+
+      - name: updated_at
+        description: "Timestamp of the latest update captured by the snapshot."
+        tests:
+          - not_null
+
+      - name: scd_valid_from
+        description: "Timestamp from which this version of the customer record is valid."
+        tests:
+          - not_null
+
+      - name: scd_id
+        description: "dbt snapshot row identifier (dbt_scd_id) — unique per snapshot version."
+        tests:
+          - not_null
+          - unique
+
+  # ── FACT_ORDERS ──────────────────────────────────────────────────────────────
+  - name: fact_orders
+    description: >
+      Grain: one row per order. Incremental model using merge strategy — re-running
+      on the same data produces identical results (idempotent). Foreign key to
+      dim_customers via customer_key.
+    meta:
+      owner: analytics_engineering
+      domain: sales
+      tier: gold
+      contains_pii: false
+    columns:
+      - name: order_key
+        description: "Surrogate primary key — deterministic MD5 of order_id."
+        tests:
+          - not_null
+          - unique
+
+      - name: order_id
+        description: "Natural key from source system (e.g. ORD-000001)."
+        tests:
+          - not_null
+          - unique
+
+      - name: customer_id
+        description: "Natural key — join back to source customers table."
+        tests:
+          - not_null
+
+      - name: customer_key
+        description: "Foreign key to dim_customers.customer_key."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_key
+
+      - name: order_date
+        description: "Date the order was placed."
+        tests:
+          - not_null
+
+      - name: order_status
+        description: "Current fulfillment status."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+
+      - name: order_channel
+        description: "Sales channel through which the order was placed."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['web', 'mobile', 'store', 'api']
+
+      - name: shipping_city
+        description: "Destination city."
+
+      - name: shipping_state
+        description: "Destination state/province."
+
+      - name: shipping_country
+        description: "Destination country code."
+
+      - name: customer_segment
+        description: "Denormalised customer segment at time of order."
+
+      - name: customer_tier
+        description: "Denormalised customer tier at time of order."
+
+      - name: order_amount
+        description: "Total order value in USD."
+        tests:
+          - not_null
+          - assert_positive_amounts
+
+      - name: created_at
+        description: "Timestamp when the order record was created."
+        tests:
+          - not_null
+
+      - name: updated_at
+        description: "Timestamp when the order record was last updated — used as incremental watermark."
+        tests:
+          - not_null

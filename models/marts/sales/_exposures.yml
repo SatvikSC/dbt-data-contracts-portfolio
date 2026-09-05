@@ -1,0 +1,35 @@
+version: 2
+
+exposures:
+
+  # ── Power BI Sales Dashboard ─────────────────────────────────────────────────
+  - name: power_bi_sales_dashboard
+    type: dashboard
+    maturity: medium
+    description: >
+      Power BI sales dashboard consuming fact_orders and dim_customers for
+      executive reporting, daily sales monitoring, and channel performance analysis.
+      Primary consumer of the Gold mart layer.
+    url: https://app.powerbi.com/groups/me/reports/placeholder   # update after publish
+    depends_on:
+      - ref('fact_orders')
+      - ref('dim_customers')
+      - ref('order_status_codes')
+    owner:
+      name: analytics_engineering
+      email: analytics@company.com
+
+  # ── ML Feature Platform (Project 4) ─────────────────────────────────────────
+  - name: ml_feature_platform
+    type: ml
+    maturity: low
+    description: >
+      Project 4 ML Feature Platform reads Gold mart tables for feature engineering.
+      Customer tier, segment, order history, and channel are used as training
+      features for customer lifetime value and churn prediction models.
+    depends_on:
+      - ref('fact_orders')
+      - ref('dim_customers')
+    owner:
+      name: analytics_engineering
+      email: analytics@company.com

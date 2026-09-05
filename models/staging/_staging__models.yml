@@ -1,0 +1,146 @@
+version: 2
+
+models:
+
+  # ── STG_ORDERS ──────────────────────────────────────────────────────────────
+  - name: stg_orders
+    description: >
+      Staged orders — columns renamed to project conventions, types cast, light
+      cleaning applied. One row per order. Materialized as a view; never persisted.
+    meta:
+      owner: analytics_engineering
+      domain: sales
+      tier: silver
+      contains_pii: false
+    columns:
+      - name: order_id
+        description: "Primary key — unique order identifier."
+        tests:
+          - not_null
+          - unique
+
+      - name: customer_id
+        description: "Foreign key to stg_customers.customer_id."
+        tests:
+          - not_null
+
+      - name: order_date
+        description: "DATE the order was placed."
+        tests:
+          - not_null
+
+      - name: order_status
+        description: "Current fulfillment status."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled']
+
+      - name: order_channel
+        description: "Sales channel (renamed from 'channel')."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['web', 'mobile', 'store', 'api']
+
+      - name: shipping_city
+        description: "Destination city for the shipment."
+
+      - name: shipping_state
+        description: "Destination state/province for the shipment."
+
+      - name: shipping_country
+        description: "Destination country code for the shipment."
+
+      - name: order_amount
+        description: "Total order value in USD (renamed from 'total_amount'; cast to DECIMAL(12,2))."
+        tests:
+          - not_null
+
+      - name: created_at
+        description: "Timestamp when the order record was created."
+        tests:
+          - not_null
+
+      - name: updated_at
+        description: "Timestamp when the order record was last updated."
+        tests:
+          - not_null
+
+  # ── STG_CUSTOMERS ────────────────────────────────────────────────────────────
+  - name: stg_customers
+    description: >
+      Staged customers — columns renamed, email lowercased, full_name derived.
+      One row per customer. Materialized as a view; never persisted.
+    meta:
+      owner: analytics_engineering
+      domain: sales
+      tier: silver
+      contains_pii: true
+    columns:
+      - name: customer_id
+        description: "Primary key — unique customer identifier."
+        tests:
+          - not_null
+          - unique
+
+      - name: first_name
+        description: "Customer first name."
+        tests:
+          - not_null
+
+      - name: last_name
+        description: "Customer last name."
+        tests:
+          - not_null
+
+      - name: full_name
+        description: "Derived display name: first_name || ' ' || last_name."
+        tests:
+          - not_null
+
+      - name: email
+        description: "Lowercased customer email address."
+        tests:
+          - not_null
+          - unique
+
+      - name: phone
+        description: "Customer phone number."
+
+      - name: customer_segment
+        description: "Segment classification — B2B or B2C (renamed from 'segment')."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['B2B', 'B2C']
+
+      - name: customer_tier
+        description: "Value tier — Bronze/Silver/Gold/Platinum (renamed from 'tier')."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Bronze', 'Silver', 'Gold', 'Platinum']
+
+      - name: city
+        description: "Customer home city."
+
+      - name: state
+        description: "Customer home state/province."
+
+      - name: country
+        description: "Customer home country code."
+
+      - name: created_at
+        description: "Timestamp when the customer was first registered."
+        tests:
+          - not_null
+
+      - name: updated_at
+        description: "Timestamp when the customer record was last updated."
+        tests:
+          - not_null

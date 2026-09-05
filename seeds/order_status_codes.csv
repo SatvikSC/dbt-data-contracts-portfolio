@@ -1,0 +1,6 @@
+order_status,status_description,is_terminal_state,sort_order
+pending,Order received but not yet confirmed,false,1
+confirmed,Order confirmed and being processed,false,2
+shipped,Order has been dispatched to carrier,false,3
+delivered,Order successfully delivered to customer,true,4
+cancelled,Order cancelled before or after shipment,true,5
