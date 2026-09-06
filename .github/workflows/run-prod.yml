@@ -27,7 +27,7 @@ jobs:
           cache: pip
 
       - name: Install dbt + Databricks adapter
-        run: pip install dbt-databricks dbt-utils
+        run: pip install dbt-databricks
 
       - name: Write prod profiles.yml
         run: |
