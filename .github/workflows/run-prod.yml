@@ -57,19 +57,13 @@ jobs:
         run: dbt seed --target prod
 
       - name: dbt run (full build → workspace.dbt_prod)
-        run: >
-          dbt run --target prod
-          --vars '{"source_database": "workspace"}'
+        run: dbt run --target prod
 
       - name: dbt test
-        run: >
-          dbt test --target prod
-          --vars '{"source_database": "workspace"}'
+        run: dbt test --target prod
 
       - name: dbt docs generate
-        run: >
-          dbt docs generate --target prod
-          --vars '{"source_database": "workspace"}'
+        run: dbt docs generate --target prod
 
       - name: Upload dbt docs artifact
         uses: actions/upload-artifact@v4
