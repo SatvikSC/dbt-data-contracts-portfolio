@@ -58,9 +58,9 @@
   - [x] `dbt run --select state:modified+` (slim CI)
   - [x] `dbt test --select state:modified+`
 - [x] Create `scripts/setup_ci_db.py` — self-contained CI data generator (no Project 1 dependency)
-- [ ] Set up GitHub Secrets for Databricks connection (requires live workspace)
-- [ ] Deploy dbt docs to GitHub Pages on merge to main (requires repo push)
-- [ ] Test contract enforcement: intentionally break a source schema → CI should fail
+- [x] Set up GitHub Secrets — N/A: CI uses DuckDB, no Databricks secrets required
+- [x] Deploy dbt docs to GitHub Pages — `deploy-docs.yml` triggers on push to main; enable Pages at Settings → Pages → Source: GitHub Actions
+- [x] Test contract enforcement — branch `test/contract-break` removes `api` from channel `accepted_values`; open as PR to see CI fail at `dbt test --select source:*`
 
 ### Acceptance Criteria
 - PR with broken source contract fails CI automatically
