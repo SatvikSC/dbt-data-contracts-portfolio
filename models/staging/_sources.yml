@@ -54,7 +54,9 @@ sources:
               - not_null
               - accepted_values:
                   arguments:
-                    values: ['web', 'mobile', 'store', 'api']
+                    # CONTRACT BREAK: 'api' removed — real data contains 'api' orders
+                    # CI should fail: accepted_values test will find rows with channel='api'
+                    values: ['web', 'mobile', 'store']
 
           - name: total_amount
             description: "Total monetary value of the order in USD."
