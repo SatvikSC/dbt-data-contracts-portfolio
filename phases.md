@@ -70,6 +70,35 @@
 
 ---
 
+## Phase 3b — Databricks Production Target ✅
+**Goal:** Add Databricks as a real prod target alongside DuckDB dev/CI; both environments use identical raw schemas.
+
+### Tasks
+- [x] Confirm `profiles.yml` prod target — already had Databricks connection via env vars
+- [x] Create `scripts/setup_prod_db.py` — mirrors `setup_ci_db.py` but uses `databricks-sql-connector` to create `workspace.raw` tables with Spark SQL syntax
+- [x] Update `models/staging/_sources.yml` — conditional `database` key via `{% if var('source_database', none) %}` so DuckDB (no catalog) and Databricks (`workspace`) work without code changes
+- [x] Update `dbt_project.yml` — add `vars: source_database: ~` default; prod run passes `--vars '{"source_database": "workspace"}'`
+- [x] Create `.github/workflows/run-prod.yml` — manual/tag-triggered workflow; seeds raw tables, runs `dbt run + test --target prod`
+- [x] Update `.env.example` — added SQL Warehouse HTTP path instructions and updated DuckDB path
+- [x] Update `profiles.yml` DuckDB path → `C:/venvs/portfolio_db/dev.duckdb`
+
+### Dual-Target Architecture
+| | Dev / CI | Prod |
+|---|---|---|
+| Engine | DuckDB | Databricks SQL Warehouse |
+| Raw data | `setup_ci_db.py` | `setup_prod_db.py` |
+| Source catalog | *(none)* | `workspace` |
+| Output schema | `dev` | `workspace.dbt_prod` |
+| Trigger | every PR | manual / release tag |
+
+### One-Time Setup for Prod
+1. In Databricks: **Compute → SQL Warehouses → Create** (Starter warehouse is free)
+2. Copy **Server hostname** and **HTTP path** from Connection details
+3. Add 3 GitHub Secrets: `DBT_DATABRICKS_HOST`, `DBT_DATABRICKS_HTTP_PATH`, `DBT_DATABRICKS_TOKEN`
+4. Trigger the workflow: **Actions → dbt Prod Run → Run workflow**
+
+---
+
 ## Phase 4 — Documentation & Portfolio Polish ✅
 **Duration:** Week 4  
 **Goal:** Complete documentation, lineage, and portfolio presentation artifacts.

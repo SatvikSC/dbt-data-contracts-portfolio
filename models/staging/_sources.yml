@@ -9,9 +9,12 @@ version: 2
 sources:
   - name: raw_ecommerce
     description: >
-      Raw e-commerce transactional data. Mirrors the Bronze layer from the
-      Lakehouse Platform (Project 1). In local dev this is a DuckDB 'raw' schema
-      populated by scripts/setup_dev_db.py; in prod it is a Databricks Delta schema.
+      Raw e-commerce transactional data. In local dev (DuckDB) this is a 'raw' schema
+      populated by scripts/setup_ci_db.py. In prod (Databricks) it is the workspace.raw
+      schema populated by scripts/setup_prod_db.py.
+    {% if var('source_database', none) %}
+    database: "{{ var('source_database') }}"
+    {% endif %}
     schema: raw
     freshness:
       warn_after:  {count: 25, period: hour}

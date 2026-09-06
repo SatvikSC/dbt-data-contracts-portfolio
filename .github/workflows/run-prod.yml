@@ -1,0 +1,79 @@
+name: dbt Prod Run (Databricks)
+
+# Trigger manually or on release tag — avoids billing Databricks on every push.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dbt-prod:
+    name: dbt run → Databricks SQL Warehouse
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DBT_DATABRICKS_HOST:      ${{ secrets.DBT_DATABRICKS_HOST }}
+      DBT_DATABRICKS_HTTP_PATH: ${{ secrets.DBT_DATABRICKS_HTTP_PATH }}
+      DBT_DATABRICKS_TOKEN:     ${{ secrets.DBT_DATABRICKS_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dbt + Databricks adapter
+        run: pip install dbt-databricks dbt-utils
+
+      - name: Write prod profiles.yml
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'EOF'
+          ecommerce_dbt:
+            target: prod
+            outputs:
+              prod:
+                type: databricks
+                host:       "{{ env_var('DBT_DATABRICKS_HOST') }}"
+                http_path:  "{{ env_var('DBT_DATABRICKS_HTTP_PATH') }}"
+                token:      "{{ env_var('DBT_DATABRICKS_TOKEN') }}"
+                catalog:    workspace
+                schema:     dbt_prod
+                threads:    4
+          EOF
+
+      # Populate workspace.raw with synthetic data (mirrors scripts/setup_ci_db.py for DuckDB)
+      - name: Seed raw tables in Databricks
+        run: python scripts/setup_prod_db.py
+
+      - name: dbt deps
+        run: dbt deps
+
+      - name: dbt seed (reference data → workspace.dbt_prod)
+        run: dbt seed --target prod
+
+      - name: dbt run (full build → workspace.dbt_prod)
+        run: >
+          dbt run --target prod
+          --vars '{"source_database": "workspace"}'
+
+      - name: dbt test
+        run: >
+          dbt test --target prod
+          --vars '{"source_database": "workspace"}'
+
+      - name: dbt docs generate
+        run: >
+          dbt docs generate --target prod
+          --vars '{"source_database": "workspace"}'
+
+      - name: Upload dbt docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dbt-docs-prod
+          path: target/
+          retention-days: 14

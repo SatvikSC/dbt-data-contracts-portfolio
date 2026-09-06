@@ -15,6 +15,11 @@ clean-targets:
   - "target"
   - "dbt_packages"
 
+vars:
+  # Set to 'workspace' when running against Databricks prod target.
+  # Leave unset (null) for DuckDB dev/CI — no catalog qualifier is added.
+  source_database: ~
+
 models:
   ecommerce_dbt:
     staging:
