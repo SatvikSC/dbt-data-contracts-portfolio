@@ -1,12 +1,13 @@
 # Modern ELT with dbt + Data Contracts
 
-[![dbt CI/CD](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/YOUR_REPO/actions/workflows/ci.yml)
+[![dbt CI/CD](https://github.com/SatvikSC/dbt-data-contracts-portfolio/actions/workflows/ci.yml/badge.svg)](https://github.com/SatvikSC/dbt-data-contracts-portfolio/actions/workflows/ci.yml)
+[![dbt Docs](https://github.com/SatvikSC/dbt-data-contracts-portfolio/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/SatvikSC/dbt-data-contracts-portfolio/actions/workflows/deploy-docs.yml)
 ![dbt](https://img.shields.io/badge/dbt-1.12.3-orange)
-![Python](https://img.shields.io/badge/python-3.12%2B-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 
-> **Portfolio Project 2 of 5** — Analytics engineering layer built with dbt Core on Databricks SQL.
-> Demonstrates data contracts, dimensional modeling, SCD Type 2, incremental fact tables,
-> and automated CI/CD with tests blocking every PR.
+> **Portfolio Project 2 of 5** — Analytics engineering layer built with dbt Core.
+> Demonstrates data contracts, dimensional modeling (SCD Type 2), incremental fact tables,
+> and automated CI/CD with schema violations blocking every PR.
 
 ---
 
@@ -14,12 +15,14 @@
 
 | Concept | Implementation |
 |---|---|
-| **Data contracts** | Column-level schema + freshness expectations in `_sources.yml` — CI fails automatically if upstream breaks the contract |
-| **Dimensional modeling** | `dim_customers` (SCD Type 2 via snapshot) + `fact_orders` (incremental, merge) |
-| **Surrogate keys** | `dbt_utils.generate_surrogate_key` — deterministic, never raw MD5 |
+| **Data contracts** | Column-level schema + freshness in `_sources.yml` — CI fails automatically on violation |
+| **Dimensional modeling** | `dim_customers` (SCD2 via snapshot) + `fact_orders` (incremental, merge) |
 | **Incremental models** | `fact_orders` uses `merge` strategy — idempotent, no duplicates on re-run |
-| **Slim CI** | `dbt run --select state:modified+` — only changed models run per PR |
-| **dbt docs** | Auto-generated site with full lineage DAG, deployed to GitHub Pages on every merge |
+| **SCD Type 2** | `snap_customers` snapshot tracks full customer history; `dbt_valid_to IS NULL` = current |
+| **Surrogate keys** | `dbt_utils.generate_surrogate_key` — deterministic, never raw MD5 |
+| **Dual-target** | DuckDB (zero-cost dev/CI) + Databricks SQL Warehouse (prod) — same model SQL |
+| **Slim CI** | `dbt run --select state:modified+` — only changed models + downstream per PR |
+| **dbt docs** | Auto-generated lineage site deployed to GitHub Pages on every merge |
 | **Custom tests** | `assert_positive_amounts` — generic test enforcing business rules |
 
 ---
@@ -27,12 +30,14 @@
 ## Architecture
 
 ```
- DATA SOURCE (Project 1 Bronze / local DuckDB)
+ RAW SOURCES
+ raw.{customers, orders, order_items, products}
+ Populated by: setup_ci_db.py (DuckDB) | setup_prod_db.py (Databricks)
        │
        ▼
  ┌─────────────────────────────┐
- │  _sources.yml  (CONTRACT)   │  ← Column definitions, freshness, accepted values
- │  schema: raw                │    CI fails if upstream violates these rules
+ │  _sources.yml  (CONTRACT)   │  ← Column schema, freshness, accepted values
+ │  schema: raw                │    CI fails if upstream violates any rule
  └─────────────┬───────────────┘
                │
        ┌───────┴────────┐
@@ -43,17 +48,14 @@
                ▼
   int_orders_with_customers.sql            INTERMEDIATE (ephemeral CTE)
                │
-       ┌───────┴────────┐
-       ▼                ▼
- fact_orders.sql   dim_customers.sql       MART (Gold — analyst-ready)
-  (incremental)    (from snapshot)
-       │                │
-       └───────┬────────┘
-               ▼
-    Power BI / ML Feature Platform         EXPOSURES
+       ┌───────┴──────────────┐
+       ▼                      ▼
+ fact_orders.sql         dim_customers.sql       MART (analyst-ready)
+  (incremental,          (from snap_customers,
+   merge strategy)        SCD Type 2)
 ```
 
-**Snapshot:** `snap_customers` tracks SCD Type 2 history for every customer change.
+**Snapshot:** `snap_customers` tracks full SCD Type 2 history; `dim_customers` filters `dbt_valid_to IS NULL` for the current state.
 
 ---
 
@@ -63,7 +65,7 @@
 02_ELT_dbt_Data_Contracts/
 ├── models/
 │   ├── staging/
-│   │   ├── _sources.yml            # Data contracts — the producer-consumer agreement
+│   │   ├── _sources.yml            # Data contracts — producer-consumer agreement
 │   │   ├── _staging__models.yml    # Staging docs + tests
 │   │   ├── stg_orders.sql
 │   │   └── stg_customers.sql
@@ -71,7 +73,7 @@
 │   │   ├── _intermediate__models.yml
 │   │   └── int_orders_with_customers.sql
 │   └── marts/sales/
-│       ├── _sales__models.yml      # Gold layer docs + tests
+│       ├── _sales__models.yml      # Mart docs + tests
 │       ├── _exposures.yml          # Downstream consumers (Power BI, ML Platform)
 │       ├── dim_customers.sql       # SCD Type 2 dimension
 │       └── fact_orders.sql         # Incremental fact (merge strategy)
@@ -82,84 +84,142 @@
 ├── seeds/
 │   └── order_status_codes.csv      # Static reference data
 ├── scripts/
-│   ├── setup_dev_db.py             # Load Project 1 CSVs into local DuckDB
-│   └── setup_ci_db.py              # Generate synthetic data for CI
+│   ├── setup_ci_db.py              # Populate DuckDB raw schema (local + CI)
+│   └── setup_prod_db.py            # Populate Databricks raw schema (prod)
+├── images/
+│   └── dbt-dag.png                 # Lineage DAG screenshot
+├── docs/
+│   ├── architecture.md             # Architecture + environment matrix
+│   ├── data_dictionary.md          # All model + column definitions
+│   ├── design.md                   # Design decisions with trade-offs
+│   ├── setup_guide.md              # Step-by-step local + Databricks setup
+│   ├── troubleshooting.md          # Common errors and fixes
+│   ├── portfolio_showcase.md       # Interview talking points
+│   └── demoVideo.md                # Demo walkthrough script
 ├── .github/workflows/
-│   └── ci.yml                      # PR gate + GitHub Pages docs deploy
+│   ├── ci.yml                      # PR gate — DuckDB (no secrets needed)
+│   ├── deploy-docs.yml             # Auto-deploy dbt docs → GitHub Pages
+│   └── run-prod.yml                # Databricks prod run (manual trigger)
 ├── dbt_project.yml
 ├── packages.yml
-├── profiles.yml                    # NOT committed — see .env.example
-└── ProdReadyCheckList.md           # What to change before switching to Databricks prod
+├── .env.example                    # Env var template (no secrets)
+└── README.md
 ```
 
 ---
 
 ## Prerequisites
 
-- Python 3.12+
+- Python 3.11+
 - Git
 
 No Java, no Spark, no cloud credentials needed for local development.
 
 ---
 
-## Quick Start (Local Dev — DuckDB)
+## Quick Start (Local Dev — DuckDB, zero cost)
 
-**1. Clone the repo**
+**1. Clone and activate venv**
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git
-cd 02_ELT_dbt_Data_Contracts
+git clone https://github.com/SatvikSC/dbt-data-contracts-portfolio.git
+cd dbt-data-contracts-portfolio
+
+# Short path avoids Windows 260-char limit on deep dbt_packages subpaths
+python -m venv C:\venvs\portfolio
+C:\venvs\portfolio\Scripts\activate     # Windows PowerShell
+# source C:/venvs/portfolio/bin/activate  # macOS/Linux
 ```
 
-**2. Create and activate the virtual environment**
+**2. Install dbt**
 ```bash
-# venv lives at a short path to avoid Windows 260-char limit
-python -m venv C:\venvs\proj02_dbt
-# Windows PowerShell:
-. .\activate_env.ps1
-# macOS/Linux:
-source C:/venvs/proj02_dbt/bin/activate
+pip install dbt-duckdb pip-system-certs
+# pip-system-certs is required if behind a corporate SSL proxy
 ```
 
-**3. Install dependencies**
-```bash
-pip install dbt-databricks==1.12.5 dbt-duckdb==1.11.0 pip-system-certs
-```
-
-**4. Create `profiles.yml`** (not committed — copy this)
+**3. Create `profiles.yml`** (never committed — copy this into the project root)
 ```yaml
 ecommerce_dbt:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: "C:/venvs/proj02_dbt_db/dev.duckdb"
+      path: "C:/venvs/portfolio_db/dev.duckdb"
       schema: dev
       threads: 4
 ```
 
-**5. Populate the local database**
+**4. Populate raw schema + run the pipeline**
 ```bash
-# Uses Project 1 CSVs (5,000 orders, 500 customers):
-python scripts/setup_dev_db.py
-
-# OR use the self-contained CI generator (no Project 1 needed):
-python scripts/setup_ci_db.py --db-path C:/venvs/proj02_dbt_db/dev.duckdb
-```
-
-**6. Install dbt packages + run everything**
-```bash
+python scripts/setup_ci_db.py --db-path C:/venvs/portfolio_db/dev.duckdb
 dbt deps
-dbt snapshot          # Build SCD Type 2 snap_customers
-dbt seed              # Load order_status_codes
-dbt run               # Build all models
-dbt test              # Run all 80 tests
+dbt snapshot && dbt seed && dbt run
+dbt test                              # 80 tests — expect 0 errors
 ```
 
-**7. Browse the docs**
+**5. Browse the lineage docs**
 ```bash
 dbt docs generate
-dbt docs serve        # Opens browser at http://localhost:8080
+dbt docs serve        # Opens http://localhost:8080
+```
+
+---
+
+## Production Run (Databricks SQL Warehouse)
+
+See [`docs/setup_guide.md`](docs/setup_guide.md) for full instructions. Short version:
+
+1. Create a Databricks SQL Warehouse → copy **Server hostname** and **HTTP path**
+2. Add prod target to `profiles.yml` with `catalog: workspace`
+3. Run:
+```bash
+pip install dbt-databricks
+python scripts/setup_prod_db.py   # populates workspace.raw.*
+dbt snapshot --target prod
+dbt seed     --target prod
+dbt run      --target prod
+dbt test     --target prod
+```
+
+Output tables: `workspace.dbt_prod.{dim_customers, fact_orders}`
+
+---
+
+## CI/CD
+
+### On every PR — `.github/workflows/ci.yml` (DuckDB, no secrets needed)
+```
+setup_ci_db.py → populate raw schema
+dbt compile    → syntax check
+dbt test --select source:*         ← CONTRACT GATE: PR blocked on violation
+dbt snapshot + dbt seed
+dbt run/test --select state:modified+   ← slim CI: changed models only
+```
+
+### On merge to main — `.github/workflows/deploy-docs.yml`
+```
+dbt docs generate → deploy to GitHub Pages
+```
+
+### Manual / release tag — `.github/workflows/run-prod.yml`
+```
+setup_prod_db.py → workspace.raw.*
+dbt snapshot + seed + run + test --target prod → workspace.dbt_prod.*
+```
+
+**Enable GitHub Pages:** Settings → Pages → Source: **GitHub Actions**
+
+**Add 3 GitHub Secrets** for the prod workflow:
+`DBT_DATABRICKS_HOST` · `DBT_DATABRICKS_HTTP_PATH` · `DBT_DATABRICKS_TOKEN`
+
+---
+
+## Demonstrate Contract Enforcement
+
+```bash
+git checkout test/contract-break
+# This branch removes 'api' from channel accepted_values in _sources.yml
+# Open as a PR → CI fails at: dbt test --select source:*
+git checkout main   # to restore
 ```
 
 ---
@@ -167,91 +227,11 @@ dbt docs serve        # Opens browser at http://localhost:8080
 ## Running Tests
 
 ```bash
-# All tests (80)
-dbt test
-
-# Source contract tests only (PR gate in CI)
-dbt test --select source:*
-
-# Staging tests only
-dbt test --select staging
-
-# Mart tests only
-dbt test --select marts
+dbt test                        # all 80 tests
+dbt test --select source:*      # source contract tests only
+dbt test --select staging       # staging tests only
+dbt test --select marts         # mart tests only
 ```
-
----
-
-## Switching to Databricks (Production)
-
-See [`ProdReadyCheckList.md`](ProdReadyCheckList.md) for the full checklist.
-The short version:
-
-1. Add Databricks credentials to `.env` (copy from `.env.example`)
-2. Update `_sources.yml`: set `database`, change `schema: raw` → `schema: bronze`, update `loaded_at_field: _ingest_timestamp`
-3. Run: `dbt run --target prod`
-
----
-
-## CI/CD
-
-Every PR triggers `.github/workflows/ci.yml`:
-
-```
-Push / PR
-    │
-    ├── dbt compile          (syntax check)
-    ├── dbt test source:*    (contract gate — PR blocked on violation)
-    ├── dbt snapshot + seed
-    └── dbt run / test       (slim CI: state:modified+ if manifest exists)
-
-Merge to main
-    └── deploy-docs job → dbt docs generate → GitHub Pages
-```
-
-**Slim CI** stores `target/manifest.json` as a GitHub Actions artifact after each main-branch run.
-Subsequent PRs download it and run only the changed models + downstream dependencies.
-
----
-
-## GitHub Repository Setup
-
-If you haven't pushed this project yet:
-
-```bash
-# From the project root:
-git init
-git add .
-git commit -m "feat: add dbt + data contracts project (Phases 1-4)"
-
-# Create a new repo on GitHub (github.com → New repository)
-# Then:
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git branch -M main
-git push -u origin main
-```
-
-**After pushing**, enable GitHub Pages:
-`Settings → Pages → Source: GitHub Actions`
-
-Update the badge URLs at the top of this README with your actual repo path.
-
----
-
-## Key Design Decisions
-
-| Decision | Choice | Why |
-|---|---|---|
-| Transformation layer | dbt Core | Version-controlled SQL, built-in testing, auto-docs — industry standard |
-| Warehouse | Databricks SQL (prod) / DuckDB (dev) | Reuses Project 1 Delta tables; DuckDB = zero-cost local dev |
-| Staging materialization | `view` | No storage cost; always reflects latest source |
-| Intermediate materialization | `ephemeral` | Inlined as CTE — clean lineage, no warehouse objects |
-| Fact materialization | `incremental` + `merge` | Idempotent; avoids full recompute on every run |
-| SCD Type 2 | dbt `snapshot` | Battle-tested, no custom MERGE SQL needed |
-| Data contracts | `_sources.yml` | Version-controlled alongside transformations; violations caught in CI |
-| Slim CI | `state:modified+` | Only run changed models — keeps CI under 5 minutes as project grows |
-
-Full rationale in [`design.md`](design.md).
 
 ---
 
@@ -264,6 +244,36 @@ Full rationale in [`design.md`](design.md).
 | Intermediate | 1 (ephemeral) | — |
 | Marts | 2 | 27 |
 | **Total** | **5** | **80** |
+
+---
+
+## Key Design Decisions
+
+| Decision | Choice | Why |
+|---|---|---|
+| Transformation | dbt Core | Version-controlled SQL, built-in testing, auto-docs |
+| Dev/CI warehouse | DuckDB | Zero cost, zero infra, identical SQL dialect |
+| Prod warehouse | Databricks SQL | Unity Catalog, Delta, production-grade |
+| Staging | `view` | No storage cost; always reflects latest source |
+| Intermediate | `ephemeral` | Inlined as CTE — clean lineage, no warehouse objects |
+| Facts | `incremental` + `merge` | Idempotent; avoids full recompute on every run |
+| SCD2 | dbt `snapshot` | No custom MERGE SQL; dbt manages `dbt_valid_from/to` |
+| Contracts | `_sources.yml` | Version-controlled alongside transformations |
+| Slim CI | `state:modified+` | Only run what changed — keeps CI under 5 minutes |
+
+Full rationale: [`docs/design.md`](docs/design.md)
+
+---
+
+## Documentation
+
+| Doc | Description |
+|---|---|
+| [`docs/architecture.md`](docs/architecture.md) | Architecture diagrams, environment matrix |
+| [`docs/data_dictionary.md`](docs/data_dictionary.md) | All model + column definitions |
+| [`docs/setup_guide.md`](docs/setup_guide.md) | Local + Databricks + CI setup |
+| [`docs/troubleshooting.md`](docs/troubleshooting.md) | Common errors and fixes |
+| [`docs/portfolio_showcase.md`](docs/portfolio_showcase.md) | Interview talking points |
 
 ---
 
