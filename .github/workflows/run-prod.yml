@@ -56,6 +56,9 @@ jobs:
       - name: dbt seed (reference data → workspace.dbt_prod)
         run: dbt seed --target prod
 
+      - name: dbt snapshot (SCD2 snap_customers → workspace.snapshots)
+        run: dbt snapshot --target prod
+
       - name: dbt run (full build → workspace.dbt_prod)
         run: dbt run --target prod
 
