@@ -25,9 +25,29 @@ Analytics engineering layer built with dbt Core on Databricks SQL. Demonstrates 
 │   └── generic/                  # Custom generic test macros
 ├── macros/
 ├── seeds/
+├── scripts/
+│   ├── setup_ci_db.py        # DuckDB raw schema generator (CI + local dev)
+│   └── setup_prod_db.py      # Databricks raw schema generator (prod)
+├── images/
+│   └── dbt-dag.png           # Lineage DAG screenshot for portfolio
+├── docs/
+│   ├── architecture.md       # Architecture, env matrix, model inventory
+│   ├── data_dictionary.md    # All model + column definitions
+│   ├── design.md             # Design decisions with trade-offs
+│   ├── demoVideo.md          # Demo walkthrough script
+│   ├── file_inventory.md     # What to publish on GitHub
+│   ├── memory.md             # Session notes (internal)
+│   ├── phases.md             # Phase completion record
+│   ├── portfolio_showcase.md # Interview talking points + resume bullets
+│   ├── PRD.md                # Product requirements
+│   ├── rules.md              # SQL style + naming conventions
+│   ├── setup_guide.md        # Step-by-step local + Databricks setup
+│   └── troubleshooting.md    # Common errors and fixes
 ├── .github/
 │   └── workflows/
-│       └── ci.yml
+│       ├── ci.yml            # PR gate — DuckDB contract + model tests
+│       ├── deploy-docs.yml   # Auto-deploy dbt docs to GitHub Pages
+│       └── run-prod.yml      # Databricks prod pipeline (manual trigger)
 ├── dbt_project.yml
 ├── packages.yml
 ├── .env.example
